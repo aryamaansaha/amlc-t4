@@ -8,6 +8,7 @@ from smallvit import ViTSmallCIFAR10
 import pandas as pd
 from resnet18 import ResNet18
 from data_loader import get_cifar10_loaders
+from squeezenet import SqueezeNetCIFAR10
 
 def train_one_epoch(model, loader, device, optimizer, criterion, max_batches=20):
     model.train()
@@ -34,6 +35,8 @@ profile_epochs=3, batch_size=64, max_batches=10):
         model = ResNet18()
     elif model_name == "vit":
         model = ViTSmallCIFAR10(pretrained=True, num_classes=10)
+    elif model_name == "squeezenet":
+        model = SqueezeNetCIFAR10(num_classes=10)
     else:
         raise ValueError(f"Invalid model: {model_name}")
     model.to(device)
@@ -115,7 +118,7 @@ profile_epochs=3, batch_size=64, max_batches=10):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", type=str, required=True, choices=["resnet", "vit"])
+    parser.add_argument("--model", type=str, required=True, choices=["resnet", "vit", "squeezenet"])
     args = parser.parse_args()
 
     profile_training(model_name=args.model)
