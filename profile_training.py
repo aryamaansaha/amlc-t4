@@ -4,15 +4,15 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.profiler import profile, record_function, ProfilerActivity
-
+from smallvit import ViTSmallCIFAR10
 import pandas as pd
-
 from resnet18 import ResNet18
 from data_loader import get_cifar10_loaders
 
-def train_one_epoch(model, loader, device, optimizer, criterion):
+def train_one_epoch(model, loader, device, optimizer, criterion, max_batches=20):
     model.train()
     total_loss = 0
+    batch_count = 0
     for inputs, targets in loader:
         inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
@@ -21,23 +21,31 @@ def train_one_epoch(model, loader, device, optimizer, criterion):
         loss.backward()
         optimizer.step()
         total_loss += loss.item()
-    return total_loss / len(loader)
+        batch_count += 1
+        if batch_count >= max_batches:
+            break
+    return total_loss / batch_count
 
-def profile_training(model_name="resnet", warmup_epochs=5, profile_epochs=3, batch_size=64, max_batches=10):
+def profile_training(model_name="resnet", warmup_epochs=5, 
+profile_epochs=3, batch_size=64, max_batches=10):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
-
-    model = ResNet18() if model_name == "resnet" else None
+    if model_name == "resnet":
+        model = ResNet18()
+    elif model_name == "vit":
+        model = ViTSmallCIFAR10(pretrained=True, num_classes=10)
+    else:
+        raise ValueError(f"Invalid model: {model_name}")
     model.to(device)
 
-    train_loader, _ = get_cifar10_loaders(batch_size=batch_size)
+    train_loader, _ = get_cifar10_loaders(batch_size=batch_size, for_vit=model_name == "vit")
 
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     criterion = nn.CrossEntropyLoss()
 
     print(f"[Warmup] Training {model.__class__.__name__} for {warmup_epochs} epochs...")
     for epoch in range(warmup_epochs):
-        loss = train_one_epoch(model, train_loader, device, optimizer, criterion)
+        loss = train_one_epoch(model, train_loader, device, optimizer, criterion, max_batches=max_batches)
         print(f"Epoch {epoch+1}/{warmup_epochs} - Loss: {loss:.4f}")
 
     print(f"\n[Profiling] Training for {profile_epochs} epochs (only first {max_batches} batches each)...")
@@ -107,7 +115,7 @@ def profile_training(model_name="resnet", warmup_epochs=5, profile_epochs=3, bat
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", type=str, required=True, choices=["resnet", "mlp"])
+    parser.add_argument("--model", type=str, required=True, choices=["resnet", "vit"])
     args = parser.parse_args()
 
     profile_training(model_name=args.model)
